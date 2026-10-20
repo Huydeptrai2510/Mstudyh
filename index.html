@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mstudyh – Học trực tuyến</title>
+<!-- Cài đặt: 1) chạy schema.sql  2) điền SUPABASE_URL + SUPABASE_ANON_KEY bên dưới (anon key được phép công khai nhờ RLS; KHÔNG dùng service_role)  3) đẩy index.html lên GitHub Pages / Cloudflare Pages -->
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0d1326;--panel:#151d38;--line:#26325a;--chalk:#f1ede2;--mut:#98a2c7;--gold:#f2c14e;--ok:#3ecf8e;--no:#ff6b81}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--chalk);font:16px/1.6 "Be Vietnam Pro",system-ui,sans-serif}
+nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+nav .logo{display:flex;gap:10px;align-items:center;font-weight:800;font-size:20px;margin-right:auto}
+main{max-width:860px;margin:0 auto;padding:16px}
+h2{font-weight:800;margin:.4em 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
+button,input,select,textarea{font:inherit;color:var(--chalk);background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+button{background:var(--gold);color:#1a1400;border:0;font-weight:600;cursor:pointer;transition:transform .15s,filter .15s}
+button:hover{transform:translateY(-1px);filter:brightness(1.08)}
+button.g{background:var(--line);color:var(--chalk)}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.opt{display:block;width:100%;text-align:left;margin:8px 0;background:var(--ink);color:var(--chalk);border:1px solid var(--line);font-weight:400}
+.opt.sel{border-color:var(--gold)}.opt.ok{background:#0f4d36;border-color:var(--ok)}.opt.no{background:#5c1a28;border-color:var(--no)}
+textarea{width:100%;min-height:110px}input,select{max-width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.mut{color:var(--mut)}
+table{width:100%;border-collapse:collapse}td,th{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left}
+img{max-width:100%;border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head><body>
+<nav id="nav"></nav><main id="app"></main>
+<script>window.MathJax={tex:{inlineMath:[['$','$']]}}</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.105.3/dist/umd/supabase.js"></script>
+<script>
+const SUPABASE_URL='https://YOUR-PROJECT.supabase.co',SUPABASE_ANON_KEY='YOUR-ANON-KEY';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),app=$('#app'),nav=$('#nav');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const mail=u=>u.toLowerCase()+'@mstudyh.app',okName=u=>/^[A-Za-z0-9.]{3,30}$/.test(u);
+const RL={student:'Học sinh',teacher:'Giáo viên',admin:'Admin'};
+const LOGO='<svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#f2c14e"/><path d="M8 23V10l8 8 8-8v13" fill="none" stroke="#0d1326" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+let me=null;
+const show=h=>{app.innerHTML=h;window.MathJax?.typesetPromise?.()};
+const err=e=>alert(e?.message||e);
+
+function authView(){
+  nav.innerHTML=`<span class="logo">${LOGO}Mstudyh</span>`;
+  show(`<div class="card"><h2>Đăng nhập hoặc đăng ký</h2>
+  <div class="row"><input id="u" placeholder="Tên đăng nhập (chữ, số, dấu chấm)" autocomplete="username"><input id="p" type="password" placeholder="Mật khẩu (từ 6 ký tự)" autocomplete="current-password"><input id="d" placeholder="Tên hiển thị (khi đăng ký)"></div>
+  <p class="row"><button id="li">Đăng nhập</button><button class="g" id="su">Tạo tài khoản</button></p>
+  <p class="mut">Quên mật khẩu: liên hệ quản trị viên để được cấp mật khẩu mới.</p></div>`);
+  $('#li').onclick=async()=>{const u=$('#u').value.trim();if(!okName(u))return err('Tên đăng nhập gồm 3–30 ký tự: chữ, số, dấu chấm');
+    const{error}=await sb.auth.signInWithPassword({email:mail(u),password:$('#p').value});
+    error?err('Sai tên đăng nhập hoặc mật khẩu'):boot()};
+  $('#su').onclick=async()=>{const u=$('#u').value.trim();if(!okName(u))return err('Tên đăng nhập gồm 3–30 ký tự: chữ, số, dấu chấm');
+    const{data,error}=await sb.auth.signUp({email:mail(u),password:$('#p').value,options:{data:{username:u,display_name:$('#d').value.trim()||u}}});
+    if(error)return err(error);
+    data.session?boot():err('Tài khoản đã tạo nhưng chưa có phiên đăng nhập. Quản trị viên cần tắt "Confirm email" trong Supabase.')};
+}
+
+async function boot(){
+  const{data:{session}}=await sb.auth.getSession();
+  if(!session)return authView();
+  const{data,error}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
+  if(error||!data){await sb.auth.signOut();return authView()}
+  me=data;
+  if(me.locked){await sb.auth.signOut();me=null;authView();return err('Tài khoản đã bị khóa')}
+  const t=me.role!=='student',a=me.role==='admin';
+  nav.innerHTML=`<span class="logo">${LOGO}Mstudyh</span><button class="g" data-v="home">Bài học</button><button class="g" data-v="lb">Xếp hạng</button>${t?'<button class="g" data-v="teach">Soạn bài</button>':''}${a?'<button class="g" data-v="admin">Quản trị</button>':''}<span class="mut">${esc(me.display_name)} · ${RL[me.role]}</span><button class="g" id="out">Thoát</button>`;
+  $$('[data-v]').forEach(b=>b.onclick=()=>go(b.dataset.v));
+  $('#out').onclick=async()=>{await sb.auth.signOut();me=null;authView()};
+  go('home');
+}
+
+async function home(){
+  const{data,error}=await sb.from('lessons').select('id,title,subject,grade,published').order('id',{ascending:false});
+  if(error)return err(error);
+  show(`<h2>Bài học</h2>${data.map(l=>`<div class="card"><b>${esc(l.title)}</b> <span class="mut">${esc(l.subject)} ${esc(l.grade)}${l.published?'':' (nháp)'}</span>
+  <p class="row"><button data-o="${l.id}">Xem bài</button><button class="g" data-p="${l.id}">Luyện tập</button></p></div>`).join('')||'<p class="mut">Chưa có bài học nào được xuất bản.</p>'}`);
+  $$('[data-o]').forEach(b=>b.onclick=()=>lesson(+b.dataset.o));
+  $$('[data-p]').forEach(b=>b.onclick=()=>practice(+b.dataset.p));
+}
+
+async function lesson(id){
+  const{data:l,error}=await sb.from('lessons').select('*').eq('id',id).single();
+  if(error)return err(error);
+  const url=b=>/^https?:\/\//.test(b.url||'')?esc(b.url):'';
+  const blk=b=>b.type==='image'?`<img src="${url(b)}" alt="">`:b.type==='audio'?`<audio controls src="${url(b)}"></audio>`
+    :b.type==='formula'?`<p>$$${esc(b.data)}$$</p>`:b.type==='heading'?`<h3>${esc(b.data)}</h3>`:`<p>${esc(b.data)}</p>`;
+  show(`<h2>${esc(l.title)}</h2>${(l.content||[]).map(blk).join('')}<p class="row"><button id="pr">Luyện tập</button><button class="g" id="bk">Quay lại</button></p>`);
+  $('#pr').onclick=()=>practice(id);$('#bk').onclick=home;
+}
+
+async function practice(lid){
+  const{data:qs,error}=await sb.from('questions').select('id,content,type,options').eq('lesson_id',lid);
+  if(error)return err(error);
+  if(!qs.length)return err('Bài này chưa có câu hỏi');
+  const Q=shuffle(qs).map(q=>({...q,options:shuffle(q.options||[])}));
+  let i=0;const ans={},t0=Date.now();
+  const finish=async()=>{
+    const{data:r,error}=await sb.rpc('submit_attempt',{lid,ans,secs:Math.round((Date.now()-t0)/1000)});
+    if(error)return err(error);
+    show(`<div class="card"><h2>Kết quả: ${r.score} điểm</h2><p>Đúng ${r.correct}/${r.total} câu.</p><button id="bk">Về danh sách bài học</button></div>`);
+    $('#bk').onclick=home;
+  };
+  const step=()=>{
+    if(i>=Q.length)return finish();
+    const q=Q[i],multi=q.type==='multiple_choice';
+    show(`<div class="card"><p class="mut">Câu ${i+1}/${Q.length}${multi?' · chọn nhiều đáp án':''}</p><h3>${esc(q.content)}</h3>
+    <div>${q.options.map(o=>`<button class="opt" data-id="${esc(o.id)}">${esc(o.text)}</button>`).join('')}</div><p id="fb"></p><button id="ck">Trả lời</button></div>`);
+    $$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled)return;
+      if(multi)b.classList.toggle('sel');else{$$('.opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel')}});
+    $('#ck').onclick=async()=>{
+      const chosen=[...$$('.opt.sel')].map(b=>b.dataset.id);if(!chosen.length)return;
+      const{data:r,error}=await sb.rpc('check_answer',{qid:q.id,chosen});if(error)return err(error);
+      ans[q.id]=chosen;const right=r.answers.map(String);
+      $$('.opt').forEach(b=>{b.disabled=true;if(right.includes(b.dataset.id))b.classList.add('ok');else if(chosen.includes(b.dataset.id))b.classList.add('no')});
+      $('#fb').innerHTML=`${r.correct?'Đúng.':'Sai.'} ${esc(r.explanation||'')}`;window.MathJax?.typesetPromise?.();
+      const nx=$('#ck');nx.textContent=i+1<Q.length?'Câu tiếp theo':'Nộp bài';nx.onclick=()=>{i++;step()};
+    };
+  };
+  step();
+}
+
+async function lb(){
+  const{data,error}=await sb.rpc('leaderboard',{});if(error)return err(error);
+  show(`<h2>Bảng xếp hạng</h2><div class="card"><table><tr><th>Hạng</th><th>Tên</th><th>Điểm cao nhất</th><th>Thời gian (giây)</th></tr>${data.map(r=>`<tr><td>${r.pos}</td><td>${esc(r.name)}</td><td>${r.best}</td><td>${r.secs}</td></tr>`).join('')}</table></div>`);
+}
+
+async function teach(){
+  const{data:ls}=await sb.from('lessons').select('id,title').eq('teacher_id',me.id).order('id',{ascending:false});
+  show(`<h2>Soạn bài</h2><div class="card"><div class="row"><input id="t" placeholder="Tiêu đề"><input id="s" placeholder="Môn"><input id="g" placeholder="Lớp"></div>
+  <p><textarea id="c" placeholder="Mỗi dòng một khối. Dòng bắt đầu bằng: # tiêu đề · img:URL · audio:URL · $$công thức$$ · còn lại là văn bản"></textarea></p>
+  <p class="row"><label><input type="checkbox" id="pb"> Xuất bản ngay</label><button id="sv">Lưu bài học</button></p></div>
+  <div class="card"><h3>Nhập câu hỏi từ JSON</h3><p class="row"><select id="ls">${(ls||[]).map(l=>`<option value="${l.id}">${esc(l.title)}</option>`).join('')}</select></p>
+  <textarea id="qj" placeholder='[{"content":"2+2=?","type":"single_choice","options":[{"id":"a","text":"3"},{"id":"b","text":"4"}],"correct_answers":["b"],"explanation":"2+2=4"}]'></textarea>
+  <p><button id="im">Nhập câu hỏi</button></p></div>`);
+  const parse=t=>t.split('\n').map(x=>x.trim()).filter(Boolean).map(x=>x.startsWith('#')?{type:'heading',data:x.replace(/^#+\s*/,'')}
+    :x.startsWith('img:')?{type:'image',url:x.slice(4).trim()}:x.startsWith('audio:')?{type:'audio',url:x.slice(6).trim()}
+    :x.startsWith('$$')?{type:'formula',data:x.replace(/^\$\$|\$\$$/g,'')}:{type:'text',data:x});
+  $('#sv').onclick=async()=>{const title=$('#t').value.trim();if(!title)return err('Nhập tiêu đề');
+    const{error}=await sb.from('lessons').insert({title,subject:$('#s').value.trim(),grade:$('#g').value.trim(),content:parse($('#c').value),published:$('#pb').checked,teacher_id:me.id});
+    error?err(error):teach()};
+  $('#im').onclick=async()=>{let arr;try{arr=JSON.parse($('#qj').value)}catch{return err('JSON không hợp lệ')}
+    const lid=+$('#ls').value;if(!lid||!Array.isArray(arr))return err('Chọn bài học và nhập một mảng JSON');
+    for(const q of arr){
+      const{data,error}=await sb.from('questions').insert({lesson_id:lid,content:q.content,type:q.type||'single_choice',options:q.options||[],difficulty:q.difficulty,tags:q.tags,attachments:q.attachments}).select('id').single();
+      if(error)return err(error);
+      const k=await sb.from('question_keys').insert({question_id:data.id,correct_answers:q.correct_answers||[],explanation:q.explanation});
+      if(k.error)return err(k.error);
+    }
+    alert('Đã nhập '+arr.length+' câu hỏi')};
+}
+
+async function admin(){
+  const{data,error}=await sb.from('profiles').select('id,username,display_name,role,locked').order('created_at',{ascending:false});
+  if(error)return err(error);
+  show(`<h2>Quản trị người dùng</h2><div class="card" style="overflow:auto"><table><tr><th>Tài khoản</th><th>Tên hiển thị</th><th>Vai trò</th><th>Khóa</th></tr>${data.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td>
+  <td><select data-r="${u.id}">${Object.keys(RL).map(r=>`<option value="${r}" ${r===u.role?'selected':''}>${RL[r]}</option>`).join('')}</select></td>
+  <td><input type="checkbox" data-l="${u.id}" ${u.locked?'checked':''}></td></tr>`).join('')}</table></div>`);
+  $$('[data-r]').forEach(s=>s.onchange=async()=>{const{error}=await sb.from('profiles').update({role:s.value}).eq('id',s.dataset.r);if(error)err(error)});
+  $$('[data-l]').forEach(c=>c.onchange=async()=>{const{error}=await sb.from('profiles').update({locked:c.checked}).eq('id',c.dataset.l);if(error)err(error)});
+}
+
+const views={home,lb,teach,admin},go=v=>views[v]();
+boot();
+</script></body></html>
