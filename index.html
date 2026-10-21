@@ -83,7 +83,7 @@ function authView(reg){
   nav.innerHTML=`<span class="logo">${LOGO}Mstudyh</span>`;
   show(`<div class="card"><h2>${reg?'Tạo tài khoản':'Đăng nhập'}</h2>
   <div class="row"><input id="u" placeholder="Tên đăng nhập (chữ, số, dấu chấm)" autocomplete="username"><input id="p" type="password" placeholder="Mật khẩu (từ 6 ký tự)" autocomplete="${reg?'new-password':'current-password'}">${reg?'<input id="p2" type="password" placeholder="Nhập lại mật khẩu" autocomplete="new-password"><input id="d" placeholder="Tên hiển thị">':''}</div>
-  <p class="row"><button id="ok">${reg?'Đăng ký':'Đăng nhập'}</button><button class="g" id="sw">${reg?'Đã có tài khoản? Đăng nhập':'Chưa có tài khoản? Đăng ký'}</button></p>
+  <p class="row"><button id="ok">${reg?'Đăng ký':'Đăng nhập'}</button><button class="g" id="sw">${reg?'Đã có tài khoản? Đăng nhập':'Chưa có tài khoản?'}</button></p>
   <p class="mut">Quên mật khẩu: liên hệ quản trị viên để được cấp mật khẩu mới.</p></div>`);
   $('#sw').onclick=()=>authView(!reg);
   $('#ok').onclick=async()=>{const u=$('#u').value.trim(),p=$('#p').value;
@@ -121,7 +121,7 @@ async function home(){
   if(s)q=q.or(`title.ilike.%${s}%,subject.ilike.%${s}%,category.ilike.%${s}%`);
   if(H.g)q=q.eq('grade',H.g);if(H.tag)q=q.contains('tags',[H.tag]);
   const{data,count}=await X(q.order('featured',{ascending:false}).order('public_updated_at',{ascending:false}).range(H.p*PS,H.p*PS+PS-1));
-  show(`<h2>Bài học</h2><div class="row"><input id="q" placeholder="Tìm theo tên, môn, danh mục" value="${esc(H.q)}"><input id="g" placeholder="Lớp" size="5" value="${esc(H.g)}"><button id="sq">Tìm</button>${H.tag?`<button class="g" id="ct">Thẻ: ${esc(H.tag)} ✕</button>`:''}</div>
+  show(`<h2>Bài học</h2><div class="row"><input id="q" placeholder="Tìm kiếm" value="${esc(H.q)}"><input id="g" placeholder="Lớp" size="5" value="${esc(H.g)}"><button id="sq">Tìm</button>${H.tag?`<button class="g" id="ct">Thẻ: ${esc(H.tag)} ✕</button>`:''}</div>
   ${data.map(l=>`<div class="card"><b>${l.featured?'★ ':''}${esc(l.title)}</b> <span class="mut">${esc(l.subject)} ${esc(l.grade)} · ${pubDate(l)}</span>${l.description?`<p class="mut">${esc(l.description)}</p>`:''}
   <p class="row">${(l.tags||[]).map(t=>`<button class="g chip" data-t="${esc(t)}">#${esc(t)}</button>`).join('')}<button data-o="${l.id}">Xem bài</button><button class="g" data-p="${l.id}">Luyện tập</button></p></div>`).join('')||'<p class="mut">Không có bài học phù hợp.</p>'}${pager(count,H.p)}`);
   const f=()=>{H.q=$('#q').value;H.g=$('#g').value.trim();H.p=0;run(home)};
