@@ -87,9 +87,9 @@ function authView(reg){
   <p class="mut">Quên mật khẩu: liên hệ quản trị viên để được cấp mật khẩu mới.</p></div>`);
   $('#sw').onclick=()=>authView(!reg);
   $('#ok').onclick=async()=>{const u=$('#u').value.trim(),p=$('#p').value;
-    if(!okName(u))return err('Tên đăng nhập gồm 3–30 ký tự: chữ, số, dấu chấm');
+    if(!okName(u))return err('Tên đăng nhập');
     if(!reg){const{error}=await sb.auth.signInWithPassword({email:mail(u),password:p});return error?err('Sai tên đăng nhập hoặc mật khẩu'):boot()}
-    if(p.length<6)return err('Mật khẩu cần từ 6 ký tự');if(p!==$('#p2').value)return err('Mật khẩu nhập lại không khớp');
+    if(p.length<6)return err('6 ký tự');if(p!==$('#p2').value)return err('Mật khẩu nhập lại không khớp');
     const{data,error}=await sb.auth.signUp({email:mail(u),password:p,options:{data:{username:u,display_name:$('#d').value.trim()||u}}});
     if(error)return err(error);
     data.session?boot():err('Tài khoản đã tạo nhưng chưa có phiên đăng nhập. Quản trị viên cần tắt "Confirm email" trong Supabase.')};
