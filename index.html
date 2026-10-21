@@ -147,37 +147,63 @@ async function lesson(id,back){
 
 /* Lần đầu = chính thức (không hiện đáp án từng câu, tính xếp hạng). Từ lần sau = luyện tập (hiện đáp án, không tính điểm). */
 async function practice(lid){
-  const[{data:qs},{data:at}]=await Promise.all([X(sb.from('questions').select('id,content,type,options').eq('lesson_id',lid).order('id')),X(sb.from('attempts').select('id').eq('lesson_id',lid).eq('is_official',true).limit(1))]);
+  const[{data:qs},{data:at}]=await Promise.all([
+    X(sb.from('questions').select('id,content,type,options').eq('lesson_id',lid).order('id')),
+    X(sb.from('attempts').select('id').eq('lesson_id',lid).eq('is_official',true).limit(1))
+  ]);
   if(!qs.length)throw Error('Bài này chưa có câu hỏi');
-  const off=!at.length,Q=shuffle(qs).map(q=>({...q,options:shuffle(q.options||[])})),ans={},t0=Date.now();let i=0;
-  const txt=(q,a)=>q.type==='short_answer'?a.join(' / '):q.options.filter(o=>a.map(String).includes(String(o.id))).map(o=>o.text).join(' / ');
+  const off=!at.length,Q=shuffle(qs).map(q=>({...q,options:shuffle(q.options||[])})),ans={},t0=Date.now();
+  const txt=(q,a)=>q.type==='short_answer'
+    ?a.join(' / ')
+    :q.options.filter(o=>a.map(String).includes(String(o.id))).map(o=>o.text).join(' / ');
   const finish=async()=>{
     const{data:r}=await X(sb.rpc('submit_attempt',{lid,ans,secs:Math.round((Date.now()-t0)/1000)}));
-    const rv=Object.fromEntries(r.review.map(x=>[x.id,x]));
-    show(`<div class="card"><h2>Kết quả: ${r.score} điểm</h2><p>Đúng ${r.correct}/${r.total} câu. ${r.official?'Đây là lần làm chính thức, đã tính vào xếp hạng.':'Lần luyện tập, không tính điểm xếp hạng.'}</p>
-    ${r.official?Q.map((q,k)=>{const v=rv[q.id]||{};return `<p><b>Câu ${k+1}: ${v.correct?'Đúng':'Sai'}.</b> ${esc(q.content)}${v.correct?'':`<br><span class="mut">Đáp án: ${esc(txt(q,v.answers||[]))}</span>`}${v.explanation?`<br><span class="mut">${esc(v.explanation)}</span>`:''}</p>`}).join(''):''}
-    <button id="bk">Về danh sách bài học</button></div>`);
+    const rv=Object.fromEntries((r.review||[]).map(x=>[x.id,x]));
+    show(`<div class="card"><h2>Kết quả: ${r.score} điểm</h2>
+      <p>Đúng ${r.correct}/${r.total} câu. ${r.official?'Đây là lần làm chính thức, đã tính vào xếp hạng.':'Lần luyện tập, không tính điểm xếp hạng.'}</p>
+      ${Q.map((q,k)=>{const v=rv[q.id]||{};return `<div class="card"><p><b>Câu ${k+1}: ${v.correct?'Đúng':'Sai'}.</b> ${esc(q.content)}</p>
+      ${!v.correct?`<p><b>Đáp án:</b> ${esc(txt(q,v.answers||[]))}</p>`:''}
+      ${v.explanation?`<p class="mut">${esc(v.explanation)}</p>`:''}</div>`}).join('')}
+      <button id="bk">Về danh sách bài học</button></div>`);
     $('#bk').onclick=()=>run(home);
   };
   const step=()=>{
     if(i>=Q.length)return finish();
     const q=Q[i],sa=q.type==='short_answer',multi=q.type==='multiple_choice',last=i+1>=Q.length;
-    show(`<div class="card"><p class="mut">${off?'Làm chính thức (một lần, tính xếp hạng)':'Luyện tập (không tính xếp hạng)'} · Câu ${i+1}/${Q.length}${multi?' · chọn nhiều đáp án':''}</p><h3>${esc(q.content)}</h3>
-    ${sa?'<input id="sa" maxlength="200" placeholder="Nhập câu trả lời" style="width:100%">':`<div>${q.options.map(o=>`<button class="opt" data-id="${esc(o.id)}">${esc(o.text)}</button>`).join('')}</div>`}<p id="fb"></p><button id="ck">${off?(last?'Nộp bài':'Câu tiếp theo'):'Trả lời'}</button></div>`);
+    show(`<div class="card"><p class="mut">${off?'Làm chính thức (một lần, tính xếp hạng)':'Luyện tập (không tính xếp hạng)'} · Câu ${i+1}/${Q.length}${multi?' · chọn nhiều đáp án':''}</p>
+      <h3>${esc(q.content)}</h3>
+      ${sa?'<input id="sa" maxlength="200" placeholder="Nhập câu trả lời" style="width:100%">':`<div>${q.options.map(o=>`<button class="opt" data-id="${esc(o.id)}">${esc(o.text)}</button>`).join('')}</div>`}
+      <p id="fb" aria-live="polite"></p><button id="ck">Kiểm tra đáp án</button></div>`);
     $$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled)return;
-      if(multi)b.classList.toggle('sel');else{$$('.opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel')}});
-    $('#ck').onclick=async e=>{
-      const chosen=sa?[$('#sa').value.trim()].filter(Boolean):[...$$('.opt.sel')].map(b=>b.dataset.id);if(!chosen.length)return;
-      ans[q.id]=chosen;
-      if(off){i++;return step()}
-      const bt=e.target;bt.disabled=true;
-      const{data:r,error}=await sb.rpc('check_answer',{qid:q.id,chosen});if(error){bt.disabled=false;return err(error)}
-      const right=r.answers.map(String);
-      if(sa)$('#sa').disabled=true;else $$('.opt').forEach(b=>{b.disabled=true;if(right.includes(b.dataset.id))b.classList.add('ok');else if(chosen.includes(b.dataset.id))b.classList.add('no')});
-      $('#fb').innerHTML=`${r.correct?'Đúng.':'Sai.'}${sa&&!r.correct?' Đáp án: '+esc(right.join(' / ')):''} ${esc(r.explanation||'')}`;mj();
-      bt.disabled=false;bt.textContent=last?'Nộp bài':'Câu tiếp theo';bt.onclick=()=>{i++;step()};
+      if(multi)b.classList.toggle('sel');
+      else{$$('.opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel')}
+    });
+    $('#ck').onclick=async()=>{
+      const bt=$('#ck');
+      const chosen=sa?[$('#sa').value.trim()].filter(Boolean):[...$$('.opt.sel')].map(b=>b.dataset.id);
+      if(!chosen.length)return err(sa?'Hãy nhập câu trả lời trước.':'Hãy chọn ít nhất một đáp án.');
+      bt.disabled=true;
+      try{
+        const{data:r}=await X(sb.rpc('check_answer',{qid:q.id,chosen}));
+        ans[q.id]=chosen;
+        const right=(r.answers||[]).map(String);
+        if(sa)$('#sa').disabled=true;
+        else $$('.opt').forEach(b=>{
+          b.disabled=true;
+          if(right.includes(String(b.dataset.id)))b.classList.add('ok');
+          else if(chosen.map(String).includes(String(b.dataset.id)))b.classList.add('no');
+        });
+        $('#fb').innerHTML=`<b class="${r.correct?'':'bad'}">${r.correct?'✓ Chính xác!':'✗ Chưa chính xác.'}</b>
+          ${!r.correct?`<br><span class="mut"><b>Đáp án đúng:</b> ${esc(txt(q,r.answers||[]))}</span>`:''}
+          ${r.explanation?`<br><span class="mut">${esc(r.explanation)}</span>`:''}`;
+        mj();
+        bt.textContent=last?'Nộp bài':'Câu tiếp theo';
+        bt.disabled=false;
+        bt.onclick=()=>{i++;step()};
+      }catch(e){bt.disabled=false;err(e)}
     };
   };
+  let i=0;
   step();
 }
 
